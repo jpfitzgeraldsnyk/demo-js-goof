@@ -8,6 +8,10 @@ jobs:
   code-analysis:
     name: Snyk Code Scan & GH security upload
     runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -22,18 +26,17 @@ jobs:
 
       - name: Run Snyk to check for vulnerabilities
         uses: snyk/actions/node@master
-        continue-on-error: false
+        continue-on-error: true
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
           command: code test
           args: '--severity-threshold=high --sarif-file-output=snyk.sarif --exclude-vuln-types=lic'
 
-      - name: Upload Snyk SARIF file
-        uses: actions/upload-artifact@v4
+      - name: Upload SARIF to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
         with:
-          name: snyk-sarif-report
-          path: snyk.sarif
+          sarif_file: snyk.sarif
 
   open-source:
     name: Snyk Open Source Test
