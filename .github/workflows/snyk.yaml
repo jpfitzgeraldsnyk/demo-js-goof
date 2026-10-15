@@ -15,10 +15,10 @@ jobs:
           chmod +x snyk
           sudo mv snyk /usr/local/bin/
       - name: Snyk Monitor
-        run: snyk monitor --org=<your-org-slug>
+        run: snyk monitor
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
       - name: Snyk Test
-        run: snyk test --org=<your-org-slug>
+        run: snyk test
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
