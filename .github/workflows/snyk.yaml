@@ -1,0 +1,24 @@
+name: Snyk Open Source Scan
+
+on: [push, pull_request]
+
+jobs:
+  snyk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install dependencies
+        run: npm install
+      - name: Install Snyk CLI
+        run: |
+          curl --compressed https://downloads.snyk.io/cli/stable/snyk-linux -o snyk
+          chmod +x snyk
+          sudo mv snyk /usr/local/bin/
+      - name: Snyk Monitor
+        run: snyk monitor --org=<your-org-slug>
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      - name: Snyk Test
+        run: snyk test --org=<your-org-slug>
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
