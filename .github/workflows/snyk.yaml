@@ -76,7 +76,6 @@ jobs:
         run: >
           snyk monitor
           --all-projects
-          --project-name="${{ github.repository }}"
           --target-reference="$TARGET_REF"
  
       # The build gate: scans dependencies and exits with an error (failing
