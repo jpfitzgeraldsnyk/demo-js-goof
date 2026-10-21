@@ -1,1 +1,119 @@
-
+# ---------------------------------------------------------------------------
+# Snyk Security Gate
+# Runs a Snyk Open Source scan (dependencies) and a Snyk Code scan (your own
+# source code). Either scan fails the build if it finds HIGH or CRITICAL
+# issues, and both send their results to the Snyk UI.
+# Save this file as: .github/workflows/snyk.yml
+# ---------------------------------------------------------------------------
+name: Snyk Security Gate
+ 
+# When the workflow runs
+on:
+  # Every push to main
+  push:
+    branches: [main]
+  # Every pull request that targets main
+  pull_request:
+    branches: [main]
+ 
+# Least-privilege: the workflow only needs to read the repo contents
+permissions:
+  contents: read
+ 
+# Environment variables available to every job and step below
+env:
+  # Authenticates the Snyk CLI. The CLI picks up SNYK_TOKEN automatically,
+  # so no separate "snyk auth" step is needed.
+  SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+  # Branch name used to label results in the Snyk UI.
+  # For PRs this is the source branch, so PR scans don't overwrite main's
+  # snapshot. For pushes it is simply the branch name (e.g. "main").
+  TARGET_REF: ${{ github.head_ref || github.ref_name }}
+ 
+jobs:
+  # -------------------------------------------------------------------------
+  # JOB 1: Snyk Open Source - scans your npm dependencies for known
+  # vulnerabilities
+  # -------------------------------------------------------------------------
+  snyk-open-source:
+    name: Snyk Open Source (SCA)
+    # Run on a GitHub-hosted Ubuntu machine
+    runs-on: ubuntu-latest
+    steps:
+      # Download your repository's code onto the runner
+      - name: Checkout
+        uses: actions/checkout@v4
+ 
+      # Install Node.js and npm on the runner.
+      # Change node-version to match what your project uses.
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          # Caches ~/.npm between runs to speed up installs
+          cache: npm
+ 
+      # Install dependencies exactly as pinned in package-lock.json.
+      # Snyk needs these installed so it can see the full dependency tree
+      # (including transitive dependencies).
+      # Note: "npm ci" requires a package-lock.json. If you don't have one,
+      # change this to "npm install".
+      - name: Install dependencies
+        run: npm ci
+ 
+      # Install the Snyk CLI on the runner
+      - name: Set up Snyk CLI
+        uses: snyk/actions/setup@master
+ 
+      # Upload a snapshot of your dependencies to the Snyk UI so you can view
+      # and monitor them there. This step never fails the build because of
+      # vulnerabilities; it only records the results. It runs BEFORE the gate
+      # so results always reach the UI, even when the gate below fails.
+      #   --all-projects      finds every package.json (handy for monorepos)
+      #   --project-name      the project name shown in the Snyk UI
+      #   --target-reference  the branch the results are labelled with
+      - name: Snyk Open Source - send results to Snyk UI
+        run: >
+          snyk monitor
+          --all-projects
+          --project-name="${{ github.repository }}"
+          --target-reference="$TARGET_REF"
+ 
+      # The build gate: scans dependencies and exits with an error (failing
+      # the build) if any HIGH or CRITICAL vulnerability is found.
+      # Medium and low issues are ignored here, so they won't block the build.
+      - name: Snyk Open Source - fail build on high/critical
+        run: snyk test --all-projects --severity-threshold=high
+ 
+  # -------------------------------------------------------------------------
+  # JOB 2: Snyk Code - static analysis (SAST) of your own source code.
+  # Runs in parallel with Job 1 since the two scans don't depend on each other.
+  # -------------------------------------------------------------------------
+  snyk-code:
+    name: Snyk Code (SAST)
+    runs-on: ubuntu-latest
+    steps:
+      # Download your repository's code onto the runner.
+      # (No npm install needed: Snyk Code analyses source files directly.)
+      - name: Checkout
+        uses: actions/checkout@v4
+ 
+      # Install the Snyk CLI on the runner
+      - name: Set up Snyk CLI
+        uses: snyk/actions/setup@master
+ 
+      # Scan your source code, upload results to the Snyk UI, and gate the
+      # build, all in one command:
+      #   --severity-threshold=high  exit non-zero (fail the build) on
+      #                              high or critical findings only
+      #   --report                   upload the results to the Snyk UI
+      #   --project-name             the project name shown in the Snyk UI
+      #   --target-reference         the branch the results are labelled with
+      - name: Snyk Code - scan, report to Snyk UI, and fail build on high/critical
+        run: >
+          snyk code test
+          --severity-threshold=high
+          --report
+          --project-name="${{ github.repository }}"
+          --target-reference="$TARGET_REF"
+ 
