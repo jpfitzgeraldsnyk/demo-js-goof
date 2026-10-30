@@ -195,8 +195,9 @@ exports.create = function (req, res, next) {
   // console.log('req.body: ' + JSON.stringify(req.body));
 
   var item = req.body.content;
-  if (typeof item == "string") {
-    exec("identify " + item, function (err, stdout, stderr) {
+  if (typeof item == "string" && /^[A-Za-z0-9_.\-\/]+$/.test(item)) {
+    var safeItem = item;
+    exec("identify " + safeItem, function (err, stdout, stderr) {
       console.log(err);
       if (err !== null) {
         console.log("Error (" + err + "):" + stderr);
